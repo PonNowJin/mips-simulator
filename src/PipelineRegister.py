@@ -15,4 +15,21 @@ class PipelineRegister:
         self.MEM_signal = None
         self.EXE_signal = None
         
+    def reset(self):
+        """重置所有成員變數"""
+        self.instruction = None
+        self.opcode = None
+        self.pc = 0
+        self.read_data1 = 0
+        self.read_data2 = 0
+        self.imm = 0
+        self.result = 0
+        self.mem_data = 0
+        self.write_reg = 0
+
+        # 重置所有 signal
+        self.WB_signal = None
+        self.MEM_signal = None
+        self.EXE_signal = None
+        
         

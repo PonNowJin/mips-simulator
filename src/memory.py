@@ -2,9 +2,10 @@ class Memory:
     def __init__(self, size=32):
         # 記憶體初始化，每個 word 預設為 1
         self.memory = [1] * size
+        self.instruct_count = 0
         
     def read(self, address):
-        """ 讀取 memory 值（byte-addressed，但 word 為單位） """
+        """ 讀取 memory 值(byte-addressed, 但 word 為單位） """
         if address % 4 != 0:
             raise ValueError("Unaligned memory address")
         word_address = address // 4
@@ -14,7 +15,7 @@ class Memory:
         raise ValueError("Invalid memory address")
     
     def write(self, address, value):
-        """ 寫入 memory 值（byte-addressed，但 word 為單位） """
+        """ 寫入 memory 值(byte-addressed, 但 word 為單位） """
         if address % 4 != 0:
             raise ValueError("Unaligned memory address")
         word_address = address // 4
@@ -24,8 +25,19 @@ class Memory:
         else:
             raise ValueError("Invalid memory address")
         
+    def load_instruction(self, file_path:str):
+        """ 讀入 input txt file """
+        with open(file=file_path) as f:
+            for line in f:
+                self.memory[self.instruct_count] = line.rstrip()  # 去除行尾的換行符
+                self.instruct_count += 1
+        
     def dump(self):
         """ 顯示 memory 內容 """
         for i, val in enumerate(self.memory):
-            print(f"Memory[{i}]: {val}")
+            print(f"W{i} ", end="")
+        print()
+        for i, val in enumerate(self.memory):
+            print(f"{val}  ", end="")
+        print()
             

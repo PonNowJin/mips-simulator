@@ -22,6 +22,10 @@ class Registers:
     def dump(self):
         """ 顯示所有暫存器的值 """
         for i, val in enumerate(self.registers):
-            print(f"${i}: {val}")
+            print(f"${i} ", end="")
+        print()
+        for i, val in enumerate(self.registers):
+            print(f"{val}  ", end="")
+        print()
             
     
