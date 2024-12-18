@@ -9,7 +9,7 @@ class PipelineSimulator:
         self.instruct_mem = instruc_mem   # 存指令
         self.registers = Registers()
         self.pc = 0
-        self.debug = False
+        self.debug = debug
         
         # 初始化 Pipeline 暫存器
         self.IF_ID = PipelineRegister()
@@ -53,7 +53,7 @@ class PipelineSimulator:
             self.ID_EX.write_reg = rt
             
             self.ID_EX.EXE_signal = {'RegDst': 0, 'ALUSrc': 1, }
-            self.ID_EX.MEM_signal = {'Branch': 0, 'MemRead': 1, 'MemWrite': 1}
+            self.ID_EX.MEM_signal = {'Branch': 0, 'MemRead': 1, 'MemWrite': 0}
             self.ID_EX.WB_signal = {'RegWrite': 1, 'MemtoReg': 1} 
 
         elif opcode == "sw":  # I-type: sw $rt, imm($rs)
@@ -229,6 +229,11 @@ class PipelineSimulator:
             if self.debug:
                 self.registers.dump()
                 self.memory.dump()
+            
+        print(f"\n需要{cycles}個cycles")
+        print("----------------------------------------------")
+        self.registers.dump()
+        self.memory.dump()
             
             
         

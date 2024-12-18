@@ -3,6 +3,12 @@ from memory import Memory
 from pipeline import PipelineSimulator
 from pathlib import Path
 
+
+#####TODO#####
+# forwarding
+# branch
+##############
+
 def main():
     # 取得 input 內的 file
     current_file = Path(__file__)
@@ -13,7 +19,7 @@ def main():
     instruct_memory = Memory(size=32)
     instruct_memory.load_instruction(input_file)
     instruct_memory.dump()
-    pipeline = PipelineSimulator(instruct_memory)
+    pipeline = PipelineSimulator(instruct_memory, debug=True)
     pipeline.run()
     
 if __name__ == "__main__":
