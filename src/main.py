@@ -19,7 +19,7 @@ def main():
     instruct_memory = Memory(size=32)
     instruct_memory.load_instruction(input_file)
     instruct_memory.dump()
-    pipeline = PipelineSimulator(instruct_memory, debug=True)
+    pipeline = PipelineSimulator(instruct_memory, debug_reg_mem=False, debug_pipeline_reg=False)
     pipeline.run()
     
 if __name__ == "__main__":
