@@ -22,15 +22,23 @@ class PipelineSimulator:
     def instruction_fetch(self):
         """ IF: Instruction Fetch """
         instruction = self.instruct_mem.read(self.pc)
+        
         if instruction == 1:       # instruction == 1時表示沒指令（memory預設為1)
             self.IF_ID.instruction = None
             return
-        self.IF_ID.instruction = instruction
-        self.IF_ID.pc = self.pc
-        # print(f"IF: Fetch instruction {instruction} at PC = {self.pc}")
+        
         # 將指令字串拆分
         parts = instruction.replace(",", "").replace("(", " ").replace(")", "").split()
         opcode = parts[0]  # 指令名稱，例如 lw, add, beq
+        
+        # early stop
+        if self.IF_ID.stall:
+            print(f"    {parts[0]}: IF")
+            return
+            
+        self.IF_ID.instruction = instruction
+        self.IF_ID.pc = self.pc
+        # print(f"IF: Fetch instruction {instruction} at PC = {self.pc}")
 
         # 根據不同指令分類解析
         if opcode == "lw":  # I-type: lw $rt, imm($rs)
@@ -151,6 +159,11 @@ class PipelineSimulator:
         print(f"    EXE_signal = {self.ID_EX.EXE_signal}, rs = {rs}, rt = {rt if 'rt' in locals() else 'N/A'}, "
             f"rd = {rd if 'rd' in locals() else 'N/A'}, imm = {imm if 'imm' in locals() else 'N/A'}")
         '''
+        
+        # stall (這邊做 pipeline reg 清零)
+        if self.IF_ID.stall:
+            self.ID_EX.reset()
+        
         print(f"    {opcode}: ID")
         
         # 清空暫存器
@@ -291,14 +304,14 @@ class PipelineSimulator:
             and not (self.EX_MEM.WB_signal['RegWrite'] and (self.EX_MEM.write_reg != None)
                 and (self.EX_MEM.write_reg == self.ID_EX.Rs))
             and (self.MEM_WB.write_reg == self.ID_EX.Rs)):
-            self.ID_EX.read_data1 = self.ID_EX.result   # forwarding
+            self.ID_EX.read_data1 = self.MEM_WB.mem_data   # forwarding
             print('forwarding mem hazard: rs')
             
         if (self.MEM_WB.WB_signal['RegWrite'] and (self.MEM_WB.write_reg != None)
             and not (self.EX_MEM.WB_signal['RegWrite'] and (self.EX_MEM.write_reg != None)
                 and (self.EX_MEM.write_reg == self.ID_EX.Rt))
             and (self.MEM_WB.write_reg == self.ID_EX.Rt)):
-            self.ID_EX.read_data2 = self.ID_EX.result   # forwarding
+            self.ID_EX.read_data2 = self.MEM_WB.mem_data   # forwarding
             print('forwarding mem hazard: rt')
             
         # sw hazard
@@ -332,7 +345,7 @@ class PipelineSimulator:
         
         return False
             
-    def stall_pipeline(self):
+    def stall_pipeline(self) -> bool:
         if self.check_hazard():
             print("Stall inserted")
             # 停滯 IF, ID stage
@@ -341,10 +354,12 @@ class PipelineSimulator:
             
             # 插入 bubble 到 ID/EX
             self.ID_EX.reset()
+            return True
         else:
             # 沒有 hazard
             self.IF_ID.stall = False
             self.pc_stall = False
+            return False
         
 
     def run(self):
@@ -354,13 +369,17 @@ class PipelineSimulator:
         
         while self.IF_ID.instruction or self.ID_EX.instruction or self.EX_MEM.instruction or self.MEM_WB.instruction or self.pc==0:
             print(f'\nCycle {cycles}', flush=True)
-            self.stall_pipeline()
             
             self.write_back()           # WB
             self.memory_access()        # MEM
             self.execution()            # EXE
+            
+            self.stall_pipeline()
+            
             self.instruction_decode()   # ID
+            
             self.instruction_fetch()    # IF
+
             
             cycles += 1
             
@@ -369,7 +388,7 @@ class PipelineSimulator:
                 self.memory.dump()
                 
             if self.debug_pipeline_reg:
-                self.IF_ID.dump()
+                # self.IF_ID.dump()
                 self.ID_EX.dump()
                 self.EX_MEM.dump()
                 self.MEM_WB.dump()
