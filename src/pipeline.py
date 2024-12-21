@@ -13,6 +13,10 @@ class PipelineSimulator:
         self.debug_reg_mem = debug_reg_mem
         self.debug_pipeline_reg = debug_pipeline_reg
         
+        # branch 信號，ID stage 設定，IF stage 接收
+        self.branch_target = 0              # 要banch的 pc address
+        self.beq_signal = False             # 是否要branch
+        
         # 初始化 Pipeline 暫存器
         self.IF_ID = PipelineRegister()
         self.ID_EX = PipelineRegister()
@@ -21,6 +25,7 @@ class PipelineSimulator:
         
     def instruction_fetch(self):
         """ IF: Instruction Fetch """
+        
         instruction = self.instruct_mem.read(self.pc)
         
         if instruction == 1:       # instruction == 1時表示沒指令（memory預設為1)
@@ -30,10 +35,23 @@ class PipelineSimulator:
         # 將指令字串拆分
         parts = instruction.replace(",", "").replace("(", " ").replace(")", "").split()
         opcode = parts[0]  # 指令名稱，例如 lw, add, beq
+        # print('opcode: ', opcode)
         
-        # early stop
+        # stall early stop
         if self.IF_ID.stall:
             print(f"    {parts[0]}: IF")
+            return
+        
+        # branch early stop
+        if self.beq_signal == True:
+            print(f"    {parts[0]}: IF")
+            # branch target 是 beq 後下一條指令加上偏移量
+            self.pc = self.pc + (self.ID_EX.imm*4)
+            print('pc after branch: ', self.pc)
+            # 清掉錯誤指令
+            self.IF_ID.reset()
+            
+            self.beq_signal = False
             return
             
         self.IF_ID.instruction = instruction
@@ -62,7 +80,7 @@ class PipelineSimulator:
             self.IF_ID.Rs = rs
             self.IF_ID.Rt = rt
 
-        elif opcode == "add" or "sub":  # R-type: add $rd, $rs, $rt
+        elif opcode == "add" or opcode == "sub":  # R-type: add $rd, $rs, $rt
             rd = int(parts[1][1:])
             rs = int(parts[2][1:])
             rt = int(parts[3][1:])
@@ -77,6 +95,8 @@ class PipelineSimulator:
             rt = int(parts[2][1:])
             imm = int(parts[3])
 
+            self.IF_ID.Rs = rs
+            self.IF_ID.Rt = rt
             self.IF_ID.imm = imm
             self.IF_ID.write_reg = None
 
@@ -121,7 +141,7 @@ class PipelineSimulator:
             self.ID_EX.MEM_signal = {'Branch': 0, 'MemRead': 0, 'MemWrite': 1}
             self.ID_EX.WB_signal = {'RegWrite': 0, 'MemtoReg': 'X'}
 
-        elif opcode == "add" or "sub":  # R-type: add $rd, $rs, $rt
+        elif opcode == "add" or opcode == "sub":  # R-type: add $rd, $rs, $rt
             self.ID_EX.read_data1 = self.registers.read(rs)
             self.ID_EX.read_data2 = self.registers.read(rt)
             
@@ -163,6 +183,11 @@ class PipelineSimulator:
         # stall (這邊做 pipeline reg 清零)
         if self.IF_ID.stall:
             self.ID_EX.reset()
+            
+            
+        # beq 判定
+        if not self.IF_ID.stall:
+            self.beq()
         
         print(f"    {opcode}: ID")
         
@@ -327,22 +352,26 @@ class PipelineSimulator:
         if (self.ID_EX.MEM_signal['MemRead']
             and ((self.ID_EX.Rt == self.IF_ID.Rs)
                  or (self.ID_EX.Rt == self.IF_ID.Rt))):
+            print('load-use hazard')
             return True
         
         # branch hazard:
-        if self.ID_EX.opcode == "beq":
+        if self.IF_ID.opcode == "beq":
+            # print('檢測1', self.ID_EX.opcode, ' ', self.EX_MEM.opcode)
             # ALU 指令（前一個需要 stall)
             if self.EX_MEM.opcode == "add" or self.EX_MEM.opcode == "sub":
-                if (self.ID_EX.Rs == self.EX_MEM.write_reg) or (self.ID_EX.Rt == self.EX_MEM.write_reg):
+                if (self.IF_ID.Rs == self.EX_MEM.write_reg) or (self.IF_ID.Rt == self.EX_MEM.write_reg):
+                    print('branch hazard')
                     return True
             # lw 指令（前個、前前個, 需要 stall)
             if self.EX_MEM.opcode == "lw" or self.MEM_WB.opcode == "lw":
-                if ((self.ID_EX.Rs == self.EX_MEM.Rt) 
-                    or (self.ID_EX.Rt == self.EX_MEM.Rt)
-                    or (self.ID_EX.Rs == self.MEM_WB.Rt)
-                    or (self.ID_EX.Rt == self.MEM_WB.Rt)):
+                # print('檢測2')
+                if ((self.IF_ID.Rs == self.EX_MEM.Rt) 
+                    or (self.IF_ID.Rt == self.EX_MEM.Rt)
+                    or (self.IF_ID.Rs == self.MEM_WB.Rt)
+                    or (self.IF_ID.Rt == self.MEM_WB.Rt)):
+                    print('branch hazard')
                     return True
-        
         return False
             
     def stall_pipeline(self) -> bool:
@@ -361,6 +390,17 @@ class PipelineSimulator:
             self.pc_stall = False
             return False
         
+    def beq(self):
+        """ 
+        beq logic 
+        beq $rs, $rt, imm
+        放在 ID stage Forwarding 後
+        """
+        if self.ID_EX.opcode == 'beq':
+            if self.ID_EX.read_data1 == self.ID_EX.read_data2:
+                print('beq: branch')
+                self.beq_signal = True
+                
 
     def run(self):
         """ 執行模擬器 """
@@ -369,6 +409,8 @@ class PipelineSimulator:
         
         while self.IF_ID.instruction or self.ID_EX.instruction or self.EX_MEM.instruction or self.MEM_WB.instruction or self.pc==0:
             print(f'\nCycle {cycles}', flush=True)
+            
+            # self.stall_pipeline()
             
             self.write_back()           # WB
             self.memory_access()        # MEM
@@ -388,7 +430,7 @@ class PipelineSimulator:
                 self.memory.dump()
                 
             if self.debug_pipeline_reg:
-                # self.IF_ID.dump()
+                self.IF_ID.dump()
                 self.ID_EX.dump()
                 self.EX_MEM.dump()
                 self.MEM_WB.dump()
