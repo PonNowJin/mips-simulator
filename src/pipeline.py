@@ -47,7 +47,7 @@ class PipelineSimulator:
             print(f"    {parts[0]}: IF")
             # branch target 是 beq 後下一條指令加上偏移量
             self.pc = self.pc + (self.ID_EX.imm*4)
-            print('pc after branch: ', self.pc)
+            # print('pc after branch: ', self.pc)
             # 清掉錯誤指令
             self.IF_ID.reset()
             
@@ -254,16 +254,19 @@ class PipelineSimulator:
         result = self.EX_MEM.result
         mem_data = 0
         
-        # memory access
+        self.MEM_WB.result = result
+        
+        # memory access (將lw, sw 的 mem read 結果也存於 result)
         if opcode == 'lw':
             mem_data = self.memory.read(result)
+            self.MEM_WB.result = mem_data
         elif opcode == 'sw':
             self.memory.write(result, self.EX_MEM.read_data2)
+            self.MEM_WB.result = mem_data
         
         # 設定 MEM/WB Pipeline Reg
         self.MEM_WB.instruction = self.EX_MEM.instruction
         self.MEM_WB.opcode = self.EX_MEM.opcode
-        self.MEM_WB.result = result
         self.MEM_WB.mem_data = mem_data
         self.MEM_WB.read_data1 = self.EX_MEM.read_data1
         self.MEM_WB.read_data2 = self.EX_MEM.read_data2
@@ -317,27 +320,27 @@ class PipelineSimulator:
         if (self.EX_MEM.WB_signal['RegWrite'] and (self.EX_MEM.write_reg != None)
             and (self.EX_MEM.write_reg == self.ID_EX.Rs)):
             self.ID_EX.read_data1 = self.EX_MEM.result  # forwarding
-            print('forwarding ex hazard: rs')
+            # print('forwarding ex hazard: rs')
             
         if (self.EX_MEM.WB_signal['RegWrite'] and (self.EX_MEM.write_reg != None)
             and (self.EX_MEM.write_reg == self.ID_EX.Rt)):
             self.ID_EX.read_data2 = self.EX_MEM.result  # forwarding
-            print('forwarding ex hazard: rt -> ', self.ID_EX.read_data2)
+            # print('forwarding ex hazard: rt -> ', self.ID_EX.read_data2)
         
         # MEM hazard
         if (self.MEM_WB.WB_signal['RegWrite'] and (self.MEM_WB.write_reg != None)
             and not (self.EX_MEM.WB_signal['RegWrite'] and (self.EX_MEM.write_reg != None)
                 and (self.EX_MEM.write_reg == self.ID_EX.Rs))
             and (self.MEM_WB.write_reg == self.ID_EX.Rs)):
-            self.ID_EX.read_data1 = self.MEM_WB.mem_data   # forwarding
-            print('forwarding mem hazard: rs')
+            self.ID_EX.read_data1 = self.MEM_WB.result   # forwarding
+            # print('forwarding mem hazard: rs')
             
         if (self.MEM_WB.WB_signal['RegWrite'] and (self.MEM_WB.write_reg != None)
             and not (self.EX_MEM.WB_signal['RegWrite'] and (self.EX_MEM.write_reg != None)
                 and (self.EX_MEM.write_reg == self.ID_EX.Rt))
             and (self.MEM_WB.write_reg == self.ID_EX.Rt)):
-            self.ID_EX.read_data2 = self.MEM_WB.mem_data   # forwarding
-            print('forwarding mem hazard: rt')
+            self.ID_EX.read_data2 = self.MEM_WB.result   # forwarding
+            # print('forwarding mem hazard: rt')
             
         # sw hazard
         
@@ -352,7 +355,7 @@ class PipelineSimulator:
         if (self.ID_EX.MEM_signal['MemRead']
             and ((self.ID_EX.Rt == self.IF_ID.Rs)
                  or (self.ID_EX.Rt == self.IF_ID.Rt))):
-            print('load-use hazard')
+            # print('load-use hazard')
             return True
         
         # branch hazard:
@@ -361,7 +364,7 @@ class PipelineSimulator:
             # ALU 指令（前一個需要 stall)
             if self.EX_MEM.opcode == "add" or self.EX_MEM.opcode == "sub":
                 if (self.IF_ID.Rs == self.EX_MEM.write_reg) or (self.IF_ID.Rt == self.EX_MEM.write_reg):
-                    print('branch hazard')
+                    # print('branch hazard')
                     return True
             # lw 指令（前個、前前個, 需要 stall)
             if self.EX_MEM.opcode == "lw" or self.MEM_WB.opcode == "lw":
@@ -370,13 +373,13 @@ class PipelineSimulator:
                     or (self.IF_ID.Rt == self.EX_MEM.Rt)
                     or (self.IF_ID.Rs == self.MEM_WB.Rt)
                     or (self.IF_ID.Rt == self.MEM_WB.Rt)):
-                    print('branch hazard')
+                    # print('branch hazard')
                     return True
         return False
             
     def stall_pipeline(self) -> bool:
         if self.check_hazard():
-            print("Stall inserted")
+            # print("Stall inserted")
             # 停滯 IF, ID stage
             self.IF_ID.stall = True
             self.pc_stall = True
@@ -398,7 +401,7 @@ class PipelineSimulator:
         """
         if self.ID_EX.opcode == 'beq':
             if self.ID_EX.read_data1 == self.ID_EX.read_data2:
-                print('beq: branch')
+                # print('beq: branch')
                 self.beq_signal = True
                 
 
